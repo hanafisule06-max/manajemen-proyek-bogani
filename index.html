@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manajemen Proyek Rumah</title>
+<style>
+:root{--bg:#e8e9ea;--pn:#f7f7f6;--tx:#1b2129;--mu:#5d6773;--ln:#c5c9cd;--ac:#f2b600;--bl:#1f4e79;--bad:#b3261e}
+@media(prefers-color-scheme:dark){:root{--bg:#14181d;--pn:#1d232a;--tx:#e9ecef;--mu:#9aa5b1;--ln:#343d47;--bl:#6aa6dc;--bad:#ff8a80}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:16px}
+header{display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom:4px solid var(--ac);padding-bottom:10px;margin-bottom:12px}
+h1{font-size:22px;margin:0;font-weight:800;letter-spacing:-.01em}
+h2{font-size:16px;margin:20px 0 8px}
+button,input,select,.btn{font:inherit;color:inherit}
+button,.btn{cursor:pointer;border:1px solid var(--ln);background:var(--pn);padding:6px 12px;border-radius:2px;display:inline-block}
+button.pri{background:var(--ac);border-color:var(--ac);color:#1b2129;font-weight:600}
+input,select{border:1px solid var(--ln);background:var(--pn);padding:6px 8px;border-radius:2px}
+button:focus-visible,input:focus-visible,select:focus-visible,.btn:focus-within{outline:2px solid var(--bl);outline-offset:2px}
+nav{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
+nav button{border-bottom:4px solid transparent}
+nav button.on{border-bottom-color:var(--ac);font-weight:700}
+.panel{background:var(--pn);border:1px solid var(--ln);padding:12px;margin-bottom:12px}
+.row{display:flex;gap:6px;flex-wrap:wrap}
+.row>input,.row>select{flex:1 1 140px;min-width:0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px}
+.stats .panel{margin:0}
+.stat b{display:block;font-size:24px;line-height:1.3}
+.stat span{color:var(--mu);font-size:13px}
+.bar{height:10px;background:var(--ln)}
+.bar i{display:block;height:100%;background:var(--bl)}
+.strip{display:flex;gap:3px}
+.seg{flex:1;min-width:0}
+.seg .bar{height:22px}
+.seg .bar i{background:var(--ac)}
+.seg small{display:block;font-size:12px;color:var(--mu);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+.task{display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--ln)}
+.task:last-child{border-bottom:0}
+.task.c{align-items:center}
+.task.done .t{text-decoration:line-through;color:var(--mu)}
+.task .m{display:block;font-size:13px;color:var(--mu)}
+.bad,.stat .bad{color:var(--bad)}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--ln)}
+th.n,td.n{text-align:right}
+td input{width:130px;text-align:right}
+tfoot td{font-weight:700;border-bottom:0}
+.empty{color:var(--mu);margin:4px 0}
+footer{margin-top:20px;font-size:13px;color:var(--mu)}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1 id="title"></h1>
+  <button onclick="rename()">Ubah nama proyek</button>
+</header>
+<nav>
+  <button data-t="dash" onclick="setTab('dash')">Ringkasan</button>
+  <button data-t="stages" onclick="setTab('stages')">Tahapan</button>
+  <button data-t="tasks" onclick="setTab('tasks')">Tugas</button>
+  <button data-t="budget" onclick="setTab('budget')">Anggaran</button>
+</nav>
+<main id="app"></main>
+<footer>
+  <button onclick="exp()">Ekspor cadangan</button>
+  <label class="btn">Impor cadangan<input type="file" accept=".json" hidden onchange="imp(event)"></label>
+  <p>Data tersimpan di browser ini saja. Ekspor cadangan secara berkala, dan impor file tersebut untuk membuka data di perangkat lain.</p>
+</footer>
+</div>
+<script>
+const KEY="proyekRumahV1";
+const defaults=()=>({nama:"Pembangunan Rumah",stages:["Persiapan dan galian","Pondasi","Struktur","Dinding dan atap","Instalasi","Finishing"].map(n=>({n,p:0})),tasks:[],budget:[]});
+let S;
+try{S=JSON.parse(localStorage.getItem(KEY))||defaults()}catch(e){S=defaults()}
+let tab="dash";
+const $=id=>document.getElementById(id);
+const rp=n=>"Rp "+Number(n||0).toLocaleString("id-ID");
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const bar=p=>`<div class="bar"><i style="width:${p}%"></i></div>`;
+const tgl=d=>d?d.split("-").reverse().join("/"):"";
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}render()}
+function setTab(t){tab=t;render()}
+function rename(){const n=prompt("Nama proyek:",S.nama);if(n&&n.trim()){S.nama=n.trim();save()}}
+function addStage(){const n=$("sn").value.trim();if(!n)return;S.stages.push({n,p:0});save()}
+function setP(i,v){S.stages[i].p=+v;save()}
+function delStage(i){if(confirm("Hapus tahapan ini?")){S.stages.splice(i,1);save()}}
+function addTask(){const t=$("tn").value.trim();if(!t)return;S.tasks.push({t,s:$("ts").value,w:$("tw").value.trim(),d:$("td").value,done:false});save()}
+function togTask(i){S.tasks[i].done=!S.tasks[i].done;save()}
+function delTask(i){if(confirm("Hapus tugas ini?")){S.tasks.splice(i,1);save()}}
+function addBud(){const n=$("bn").value.trim();if(!n)return;S.budget.push({n,r:+$("br").value||0,a:+$("ba").value||0});save()}
+function setAct(i,v){S.budget[i].a=+v||0;save()}
+function delBud(i){if(confirm("Hapus item ini?")){S.budget.splice(i,1);save()}}
+function exp(){
+  const b=new Blob([JSON.stringify(S,null,2)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(b);
+  a.download="proyek-rumah-"+new Date().toISOString().slice(0,10)+".json";a.click();
+}
+function imp(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{try{const d=JSON.parse(r.result);if(d.stages&&d.tasks&&d.budget){S=d;save()}else alert("File tidak valid.")}catch(x){alert("File tidak valid.")}};
+  r.readAsText(f);e.target.value="";
+}
+function render(){
+  document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.t===tab));
+  $("title").textContent=S.nama;
+  document.title=S.nama;
+  const avg=S.stages.length?Math.round(S.stages.reduce((a,s)=>a+s.p,0)/S.stages.length):0;
+  const today=new Date().toISOString().slice(0,10);
+  const done=S.tasks.filter(t=>t.done).length;
+  const late=S.tasks.filter(t=>!t.done&&t.d&&t.d<today).length;
+  const R=S.budget.reduce((a,b)=>a+b.r,0),A=S.budget.reduce((a,b)=>a+b.a,0);
+  let h="";
+  if(tab==="dash"){
+    h=`<div class="stats">
+      <div class="panel stat"><span>Progres keseluruhan</span><b>${avg}%</b>${bar(avg)}</div>
+      <div class="panel stat"><span>Tugas selesai</span><b>${done} dari ${S.tasks.length}</b><span class="${late?"bad":""}">${late} tugas terlambat</span></div>
+      <div class="panel stat"><span>Biaya terealisasi</span><b>${rp(A)}</b><span>dari RAB ${rp(R)}${R?" ("+Math.round(A/R*100)+"%)":""}</span></div>
+    </div>`;
+    if(R&&A>R)h+=`<p class="bad">Realisasi melebihi RAB sebesar ${rp(A-R)}.</p>`;
+    h+=`<h2>Progres per tahapan</h2>`;
+    h+=S.stages.length?`<div class="strip">${S.stages.map(s=>`<div class="seg">${bar(s.p)}<small title="${esc(s.n)}">${esc(s.n)} ${s.p}%</small></div>`).join("")}</div>`:`<p class="empty">Belum ada tahapan. Tambahkan di tab Tahapan.</p>`;
+  }
+  if(tab==="stages"){
+    h=`<div class="panel"><div class="row"><input id="sn" placeholder="Nama tahapan baru" aria-label="Nama tahapan baru"><button class="pri" onclick="addStage()">Tambah tahapan</button></div></div><div class="panel">`;
+    h+=S.stages.length?S.stages.map((s,i)=>`<div class="task c"><span style="flex:1 1 130px">${esc(s.n)}</span><input type="range" min="0" max="100" step="5" value="${s.p}" aria-label="Progres ${esc(s.n)}" oninput="this.nextElementSibling.textContent=this.value+'%'" onchange="setP(${i},this.value)"><span style="width:44px;text-align:right">${s.p}%</span><button onclick="delStage(${i})">Hapus</button></div>`).join(""):`<p class="empty">Belum ada tahapan.</p>`;
+    h+=`</div>`;
+  }
+  if(tab==="tasks"){
+    h=`<div class="panel"><div class="row">
+      <input id="tn" placeholder="Nama tugas" aria-label="Nama tugas">
+      <select id="ts" aria-label="Tahapan">${S.stages.map(s=>`<option>${esc(s.n)}</option>`).join("")}</select>
+      <input id="tw" placeholder="Penanggung jawab" aria-label="Penanggung jawab">
+      <input id="td" type="date" aria-label="Tenggat">
+      <button class="pri" onclick="addTask()">Tambah tugas</button></div></div><div class="panel">`;
+    h+=S.tasks.length?S.tasks.map((t,i)=>{
+      const lt=!t.done&&t.d&&t.d<today;
+      return `<div class="task ${t.done?"done":""}"><input type="checkbox" ${t.done?"checked":""} onchange="togTask(${i})" aria-label="Selesai: ${esc(t.t)}"><div style="flex:1"><span class="t">${esc(t.t)}</span><span class="m">${esc(t.s||"")}${t.w?" | "+esc(t.w):""}${t.d?` | <span class="${lt?"bad":""}">Tenggat ${tgl(t.d)}${lt?" (terlambat)":""}</span>`:""}</span></div><button onclick="delTask(${i})">Hapus</button></div>`;
+    }).join(""):`<p class="empty">Belum ada tugas. Isi formulir di atas untuk menambahkan tugas pertama.</p>`;
+    h+=`</div>`;
+  }
+  if(tab==="budget"){
+    h=`<div class="panel"><div class="row">
+      <input id="bn" placeholder="Item biaya (mis. semen, upah tukang)" aria-label="Item biaya">
+      <input id="br" type="number" min="0" placeholder="RAB (Rp)" aria-label="RAB">
+      <input id="ba" type="number" min="0" placeholder="Realisasi (Rp)" aria-label="Realisasi">
+      <button class="pri" onclick="addBud()">Tambah item</button></div></div><div class="panel">`;
+    h+=S.budget.length?`<div class="tw"><table><thead><tr><th>Item</th><th class="n">RAB</th><th class="n">Realisasi</th><th></th></tr></thead><tbody>${S.budget.map((b,i)=>`<tr><td>${esc(b.n)}</td><td class="n">${rp(b.r)}</td><td class="n"><input type="number" min="0" value="${b.a}" aria-label="Realisasi ${esc(b.n)}" onchange="setAct(${i},this.value)"></td><td><button onclick="delBud(${i})">Hapus</button></td></tr>`).join("")}</tbody><tfoot><tr><td>Total</td><td class="n">${rp(R)}</td><td class="n ${A>R?"bad":""}">${rp(A)}</td><td></td></tr></tfoot></table></div>`:`<p class="empty">Belum ada item anggaran. Isi formulir di atas untuk memulai.</p>`;
+    h+=`</div>`;
+  }
+  $("app").innerHTML=h;
+}
+render();
+</script>
+</body>
+</html>
